@@ -1,13 +1,47 @@
-# Kontract
+# Konstract
 
-Prototype implementation aligned with Kontract specification. Includes TypeScript modules, high-coverage tests, and CI workflow.
+Konstract 是一个事件驱动的全栈 TypeScript 框架原型，目标是以最小数据库权限完成安全、可扩展的服务端计算与客户端调用。当前仓库包含核心运行时、编译器原型、迁移与中间件机制，并配套高覆盖率测试与 CI。
 
-## Scripts
+## 主要能力
 
-- `npm run test`
+- Storage Proxy 与 MVCC：最小权限访问 storage/transactions 表
+- @backend 编译：提取装饰器元信息，生成客户端 RPC 与服务端路由
+- Middleware 过滤与内联：按 prefix/egroup/endpoints 过滤并链式执行
+- Raystream 加密：优先 chacha20-poly1305，回退 aes-256-gcm
+- 事件订阅与 SSE：统一事件格式化输出
+- 迁移与类型抽取：Schema diff 与 StorageRegistry 生成
+
+## 快速开始
+
+```bash
+npm install
+npm run lint
+npm run typecheck
+npm run test
+```
+
+## 文档（VitePress）
+
+```bash
+npm run docs:dev
+```
+
+文档入口：docs/index.md  
+构建输出：docs/.vitepress/dist
+
+## 脚本
+
+- `npm run build`
 - `npm run lint`
 - `npm run typecheck`
-- `npm run build`
+- `npm run test`
+- `npm run docs:dev`
+- `npm run docs:build`
+- `npm run docs:preview`
+
+## CI
+
+GitHub Actions 会在 PR 与主分支推送时运行 lint、typecheck、test，确保质量门槛与覆盖率达标。
 
 ## License
 
