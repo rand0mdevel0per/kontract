@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TableProxy, PGClient } from '../src/storage/TableProxy';
+type AnyRec = Record<string, unknown>;
 
 class MockPG implements PGClient {
   calls: { sql: string; params?: unknown[] }[] = [];
@@ -22,7 +23,6 @@ describe('TableProxy', () => {
   it('caches ptr after first retrieval', async () => {
     const pg = new MockPG();
     pg.storage['users:o'] = 'tbl_users_abc';
-    type AnyRec = Record<string, unknown>;
     const proxy = new TableProxy<AnyRec>(pg, 'users', ctx);
     await proxy.getPtr();
     await proxy.getPtr();
@@ -34,7 +34,6 @@ describe('TableProxy', () => {
     const pg = new MockPG();
     pg.storage['users:o'] = 'tbl_users_abc';
     pg.rows = [{ data: { id: '1' } }];
-    type AnyRec = Record<string, unknown>;
     const proxy = new TableProxy<AnyRec>(pg, 'users', ctx);
     const u = await proxy.get('1');
     expect(u?.id).toBe('1');
@@ -45,7 +44,6 @@ describe('TableProxy', () => {
   it('push and pop honor _order', async () => {
     const pg = new MockPG();
     pg.storage['tasks:o'] = 'tbl_tasks';
-    type AnyRec = Record<string, unknown>;
     const proxy = new TableProxy<AnyRec>(pg, 'tasks', ctx);
     await proxy.push({ title: 't' });
     const popRows = [{ data: { title: 't' } }];
@@ -80,6 +78,19 @@ describe('TableProxy', () => {
     expect(merged.email).toBe('e');
   });
 
+  it('update creates new when current missing', async () => {
+    const pg = new MockPG();
+    pg.storage['users:o'] = 'tbl_users_abc';
+    pg.rows = []; // get() returns null
+    const proxy = new TableProxy<AnyRec>(pg, 'users', ctx);
+    await proxy.update('1', { name: 'C' });
+    const insertCall = pg.calls.find(c => /INSERT INTO tbl_users_abc/.test(c.sql));
+    expect(!!insertCall).toBe(true);
+    const payload = insertCall?.params?.[1] as string;
+    const merged = JSON.parse(payload) as Record<string, unknown>;
+    expect(merged.name).toBe('C');
+  });
+
   it('delete marks row as logically deleted', async () => {
     const pg = new MockPG();
     pg.storage['users:o'] = 'tbl_users_abc';
@@ -108,7 +119,6 @@ describe('TableProxy', () => {
   it('exec rewrites table name and prevents other tables', async () => {
     const pg = new MockPG();
     pg.storage['users:o'] = 'tbl_users_abc';
-    type AnyRec = Record<string, unknown>;
     const proxy = new TableProxy<AnyRec>(pg, 'users', ctx);
     await proxy.exec('SELECT * FROM users WHERE id = $1', ['1']);
     const last = pg.calls[pg.calls.length - 1];
