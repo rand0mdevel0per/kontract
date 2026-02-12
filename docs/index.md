@@ -1,17 +1,20 @@
-# Konstract
+# Konstract 文档
 
-Konstract 是一个事件驱动的全栈 TypeScript 框架原型，强调最小数据库权限、可扩展的服务端执行模型与清晰的编译期边界。该站点聚合框架能力说明、关键模块设计与使用方式，便于在 Cloudflare Pages 等平台部署。
+这份文档聚焦框架的核心能力、执行模型与运行时约束，目标是让你快速理解 Konstract 在“最小数据库权限 + 事件驱动执行”下的工程化路径。
 
-## 你会在这里看到
+## 核心概念
 
-- 运行时与存储代理的设计原则
-- @backend 编译与 RPC 路由生成方式
-- Middleware 过滤与内联执行模型
-- 迁移系统与 Schema diff 规则
-- Raystream 加密链路与事件订阅格式
+- Storage Proxy 与 MVCC：最小权限访问与可见性控制
+- @backend 编译：元信息提取、RPC Stub 与服务端路由生成
+- Middleware 过滤与内联：按条件裁剪并构造 next() 链
+- Raystream 加密：优先 chacha20-poly1305 的端到端通道
+- 迁移系统：Schema diff 与安全变更规则
+- SSE 事件输出：统一格式便于订阅
 
-## 开始阅读
+## 快速导航
 
 - [概览](/guide/overview)
 - [快速开始](/guide/quickstart)
 - [运行时设计](/architecture/runtime)
+- [编译器设计](/architecture/compiler)
+- [存储与迁移](/architecture/storage)
