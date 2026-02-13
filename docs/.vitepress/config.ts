@@ -4,7 +4,11 @@ export default defineConfig({
   title: 'Kontract',
   description: 'Serverless full-stack TypeScript framework with minimal database privileges',
   base: '/',
+  head: [
+    ['link', { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
+  ],
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/overview' },
       { text: 'Quickstart', link: '/guide/quickstart' },

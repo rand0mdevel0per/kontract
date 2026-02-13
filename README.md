@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="logo.svg" alt="Kontract" width="128" height="128">
+</p>
+
+<p align="center">
   <strong>Kontract</strong><br>
   Serverless TypeScript framework with minimal database privileges
 </p>
@@ -6,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/rand0mdevel0per/kontract/actions"><img src="https://github.com/rand0mdevel0per/kontract/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/rand0mdevel0per/kontract/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-  <img src="https://img.shields.io/badge/tests-123%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-247%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
 </p>
 
@@ -115,7 +119,7 @@ src/
   security/    permission constants and verification
   cli/         migration helpers
 demo/          example Cloudflare Workers app
-test/          unit tests (123 tests, 97%+ coverage)
+test/          unit tests (247 tests, 97%+ coverage)
 docs/          VitePress documentation site
 specs/         framework specification
 ```
