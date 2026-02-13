@@ -25,3 +25,6 @@ export * from './auth/session';
 export * from './auth/user';
 export * from './auth/middleware';
 export * from './auth/router';
+export * from './adapters/types';
+export * from './adapters/tikv';
+export * from './adapters/node-gateway';

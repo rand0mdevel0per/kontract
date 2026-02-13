@@ -163,3 +163,96 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           command: deploy --env production
 ```
+
+## Node.js Deployment (non-Cloudflare)
+
+Kontract can run on any Node.js runtime using the adapter layer. Replace Cloudflare-specific primitives (DO, KV) with TiKV-backed implementations.
+
+### Architecture
+
+```
+Node.js Instance A ──┐
+Node.js Instance B ──┤── TiKV Cluster ── PostgreSQL
+Node.js Instance C ──┘
+```
+
+Each node:
+1. Runs DO logic locally (in-process memory)
+2. Persists state to TiKV for cross-node visibility
+3. Uses `SharedStorage(TiKVDOStub, TiKVKVStore)` for the two-tier cache
+4. Connects to PostgreSQL directly (no Hyperdrive needed)
+
+### Setup
+
+```ts
+import {
+  createTiKVAdapter,
+  createGateway,
+  SharedStorage,
+} from '@rand0mdevel0per/kontract';
+
+// 1. Provide a TiKV client (implement TiKVClient interface)
+const tikvClient = createYourTiKVClient('pd-host:2379');
+
+// 2. Create adapter
+const { doStub, kv } = createTiKVAdapter({ client: tikvClient });
+const shared = new SharedStorage(doStub, kv);
+
+// 3. Register your @backend routes
+const routes = new Map();
+routes.set('getUser', {
+  handler: async (ctx, args) => { /* ... */ },
+  meta: { perm: 0b100 },
+});
+
+// 4. Start the gateway
+const server = createGateway({
+  adapter: { doStub, kv, pg: myPgPool, routes },
+  port: 8787,
+});
+```
+
+### TiKVClient Interface
+
+Implement this interface to connect Kontract to your TiKV cluster:
+
+```ts
+interface TiKVClient {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+  scan(prefix: string, limit: number): Promise<Array<{ key: string; value: string }>>;
+}
+```
+
+Use `@grpc/grpc-js` with TiKV proto definitions, or any TiKV-compatible proxy.
+
+### RuntimeAdapter Interface
+
+For deploying to platforms beyond Cloudflare and Node.js/TiKV, implement `RuntimeAdapter`:
+
+```ts
+interface RuntimeAdapter {
+  doStub: DOStub;    // In-process state (DO equivalent)
+  kv: KVStore;       // Persistent KV (KV equivalent)
+  pg: PGClient;      // PostgreSQL client
+  routes: Map<string, RouteHandler>;
+}
+```
+
+### RPC Endpoint
+
+The Node.js gateway serves `@backend` functions at:
+
+```
+POST /rpc/<functionName>
+```
+
+Request body is the arguments array (or a single value wrapped in an array). Response:
+
+```json
+{ "result": <return value> }
+```
+
+Health check at `GET /health` returns `{ "status": "ok", "routes": <count> }`.
+

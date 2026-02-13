@@ -549,3 +549,63 @@ class SubscriptionRegistry {
 | `subscribe` | Register a subscriber for one or more tables. Returns an unsubscribe function |
 | `dispatch` | Push a change event to all matching subscribers. Returns count of notified subscribers |
 | `getSubscriberCount` | Count subscribers, optionally filtered by table name |
+
+## Runtime Adapters
+
+### RuntimeAdapter Interface
+
+```ts
+interface RuntimeAdapter {
+  doStub: DOStub;
+  kv: KVStore;
+  pg: PGClient;
+  routes: Map<string, RouteHandler>;
+}
+
+interface RouteHandler {
+  handler: (ctx: Context, args: unknown[]) => Promise<unknown>;
+  meta: Record<string, unknown>;
+}
+```
+
+### TiKV Adapter
+
+```ts
+interface TiKVClient {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+  scan(prefix: string, limit: number): Promise<Array<{ key: string; value: string }>>;
+}
+
+class TiKVDOStub implements DOStub { ... }
+class TiKVKVStore implements KVStore { ... }
+
+function createTiKVAdapter(opts: {
+  client: TiKVClient;
+  doPrefix?: string;  // default: 'kontract:do:'
+  kvPrefix?: string;  // default: 'kontract:kv:'
+}): { doStub: TiKVDOStub; kv: TiKVKVStore };
+```
+
+| Class | Description |
+|-------|-------------|
+| `TiKVDOStub` | DOStub with local memory (hot) + TiKV persistence (cross-node). TTL tracked via timestamps |
+| `TiKVKVStore` | KVStore backed entirely by TiKV. TTL tracked via stored timestamps |
+| `createTiKVAdapter` | Factory creating both a DOStub and KVStore for use with `SharedStorage` |
+
+### Node.js Gateway
+
+```ts
+function handleRequest(req: GatewayRequest, adapter: RuntimeAdapter): Promise<GatewayResponse>;
+function createGateway(options: GatewayOptions): http.Server;
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `adapter` | `RuntimeAdapter` | (required) | Plugged-in runtime primitives |
+| `port` | `number` | `8787` | Port to listen on |
+| `host` | `string` | `'0.0.0.0'` | Host to bind to |
+| `cors` | `boolean` | `true` | Enable CORS headers |
+
+Routes: `POST /rpc/<name>` dispatches to registered handlers. `GET /health` returns status.
