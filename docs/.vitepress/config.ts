@@ -2,23 +2,39 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   title: 'Konstract',
-  description: '事件驱动全栈 TypeScript 框架原型',
+  description: 'Event‑driven full‑stack TypeScript framework prototype',
   base: '/',
   themeConfig: {
     nav: [
-      { text: '指南', link: '/guide/overview' },
-      { text: '快速开始', link: '/guide/quickstart' },
-      { text: '架构', link: '/architecture/runtime' }
+      { text: 'Guide', link: '/guide/overview' },
+      { text: 'Quickstart', link: '/guide/quickstart' },
+      { text: 'Architecture', link: '/architecture/runtime' },
+      { text: 'Developer Docs', link: '/dev/' },
+      { text: 'User Docs', link: '/user/' }
     ],
     sidebar: {
       '/guide/': [
-        { text: '概览', link: '/guide/overview' },
-        { text: '快速开始', link: '/guide/quickstart' }
+        { text: 'Overview', link: '/guide/overview' },
+        { text: 'Quickstart', link: '/guide/quickstart' }
       ],
       '/architecture/': [
-        { text: '运行时', link: '/architecture/runtime' },
-        { text: '编译器', link: '/architecture/compiler' },
-        { text: '存储与迁移', link: '/architecture/storage' }
+        { text: 'Runtime', link: '/architecture/runtime' },
+        { text: 'Compiler', link: '/architecture/compiler' },
+        { text: 'Storage & Migrations', link: '/architecture/storage' }
+      ],
+      '/dev/': [
+        { text: 'Developer Docs', link: '/dev/' },
+        { text: 'Installation', link: '/dev/installation' },
+        { text: 'Configuration', link: '/dev/configuration' },
+        { text: 'API Reference', link: '/dev/api' },
+        { text: 'Contributing', link: '/dev/contributing' }
+      ],
+      '/user/': [
+        { text: 'User Docs', link: '/user/' },
+        { text: 'Setup', link: '/user/setup' },
+        { text: 'Features', link: '/user/features' },
+        { text: 'Examples', link: '/user/examples' },
+        { text: 'Troubleshooting', link: '/user/troubleshooting' }
       ]
     },
     socialLinks: [

@@ -1,18 +1,18 @@
-# 编译器
+# Compiler
 
-编译器以 @backend 装饰器为入口，提取元信息并生成客户端 RPC 与服务端路由映射，确保调用链清晰、边界可控。
+The compiler uses @backend as the entry point to extract metadata and generate client RPC stubs and server routes, keeping the execution boundary explicit.
 
-## 编译产物
+## Artifacts
 
-- routes：服务端可执行的路由注册信息
-- client stub：统一调用 __kontract_rpc
-- server map：将函数名映射为 handler 与 meta
+- routes: server‑side route registrations
+- client stubs: uniform calls through __kontract_rpc
+- server map: function name to handler + meta
 
-## 装饰器元信息
+## Decorator Metadata
 
-支持从装饰器参数读取 egroup、perm 等字段，用于路由分组、权限与中间件过滤。
+Fields such as egroup and perm are parsed from @backend arguments for grouping, permissions, and middleware filtering.
 
-## Middleware 内联
+## Middleware Inlining
 
-- 过滤条件：prefixurl / egroup / endpoints
-- 内联方式：通过 next() 链式执行形成单一处理函数
+- Filters: prefixurl / egroup / endpoints
+- Inlining: constructs a single handler through next() chaining

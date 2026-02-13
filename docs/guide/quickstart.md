@@ -1,17 +1,17 @@
-# 快速开始
+# Quickstart
 
-## 环境要求
+## Requirements
 
 - Node.js 20+
 - npm 9+
 
-## 安装依赖
+## Install Dependencies
 
 ```bash
 npm install
 ```
 
-## 质量检查与测试
+## Quality Checks and Tests
 
 ```bash
 npm run lint
@@ -19,21 +19,28 @@ npm run typecheck
 npm run test
 ```
 
-## 启动文档站点
+## Run the Docs Site
 
 ```bash
 npm run docs:dev
 ```
 
-## 生产构建
+## Production Build
 
 ```bash
 npm run docs:build
 ```
 
-构建输出目录为 docs/.vitepress/dist，适合部署到 Cloudflare Pages。
+Build output is docs/.vitepress/dist, suitable for Cloudflare Pages.
 
-## Cloudflare Pages 部署要点
+## Cloudflare Pages Settings
 
-- 构建命令：`npm run docs:build`
-- 输出目录：`docs/.vitepress/dist`
+- Build command: `npm run docs:build`
+- Output directory: `docs/.vitepress/dist`
+
+## Wrangler Deploy
+
+```bash
+npm run docs:build
+npx wrangler pages deploy docs/.vitepress/dist --project-name konstract
+```

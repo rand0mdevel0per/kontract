@@ -1,19 +1,19 @@
-# 存储与迁移
+# Storage & Migrations
 
-StorageRegistry 由类型抽取生成，用于暴露存储表的类型入口。迁移系统通过 Schema diff 判断变更安全性，并生成可执行的 SQL 片段。
+StorageRegistry is generated from type extraction to expose typed table access. The migration layer uses schema diffs to determine safe changes and emits SQL snippets.
 
 ## StorageRegistry
 
-- 从接口声明生成 registry 键
-- 运行时通过 key 获取 TableProxy，保持类型安全
+- Generates registry keys from interfaces
+- Runtime resolves TableProxy by key with type safety
 
-## 迁移策略
+## Migration Rules
 
-- 字段新增：安全变更
-- 字段删除/类型变更：不安全变更
-- SQL 生成：基于 ALTER TABLE ADD COLUMN
+- Field additions: safe changes
+- Field removal/type changes: unsafe changes
+- SQL generation: ALTER TABLE ADD COLUMN
 
-## 设计目标
+## Design Goals
 
-- 收敛权限：真实表名通过 ptr 隐藏
-- 降低风险：仅允许可控的 Schema 演进
+- Privilege reduction: real table names are hidden behind ptr
+- Risk control: only safe schema evolution is allowed by default
