@@ -153,3 +153,98 @@ type ChangeEvent = {
   oldData?: unknown;
 };
 ```
+
+## SharedStorage
+
+`SharedStorage` implements a two-tier cache using DO memory (Tier 1, hot) and KV (Tier 2, warm). Spec §7.4.1.
+
+```ts
+class SharedStorage {
+  constructor(doStub: DOStub, kv: KVStore);
+  async get<T>(key: string): Promise<T | null>;
+  async set<T>(key: string, value: T, opts?: { ttl?: number }): Promise<void>;
+  async delete(key: string): Promise<void>;
+}
+```
+
+### Read Path
+
+1. Check DO memory (sub-millisecond, ~100ms TTL)
+2. On miss, check KV (eventual consistency, 1 hour TTL)
+3. On KV hit, backfill DO cache for subsequent reads
+4. On full miss, return `null`
+
+### Write Path
+
+1. Write to DO immediately (synchronous)
+2. Write to KV asynchronously (fire-and-forget, failures are non-fatal)
+
+### Interfaces
+
+```ts
+interface DOStub {
+  get<T>(key: string): Promise<T | null>;
+  set<T>(key: string, value: T, opts?: { ttl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+interface KVStore {
+  get<T>(key: string, opts?: { type?: string }): Promise<T | null>;
+  put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+```
+
+`MemoryDOStub` is a built-in in-process `DOStub` implementation with TTL support, used for testing and single-node deployments.
+
+## DO Pool
+
+`DOPool` distributes tasks across multiple workers using a work-stealing scheduler. Spec §7.4.2.
+
+```ts
+class DOPool<W extends Executable> {
+  constructor(workers: W[], opts?: { stealThreshold?: number });
+  async submit<T>(task: PoolTask): Promise<T>;
+  shouldSteal(): boolean;
+  stealWork(): number;
+  get workerCount(): number;
+  getQueueLengths(): number[];
+}
+```
+
+### Task Scheduling
+
+1. `submit(task)` assigns the task to the least-busy worker (shortest queue)
+2. After assignment, checks if work-stealing is needed
+3. If the busiest queue exceeds `stealThreshold × shortest queue`, half the tasks from the busiest queue are moved to the idlest
+
+### Work-Stealing
+
+```
+Worker A: [████████]  ← busiest
+Worker B: [██]
+Worker C: [█]         ← idlest
+
+After steal (threshold=2):
+Worker A: [████]
+Worker B: [██]
+Worker C: [█████]     ← received stolen tasks
+```
+
+The `stealThreshold` (default: 2) controls sensitivity. A lower threshold triggers stealing earlier.
+
+### Executable Interface
+
+```ts
+interface Executable<T = unknown> {
+  execute(task: PoolTask): Promise<T>;
+}
+
+interface PoolTask {
+  id: string;
+  handler: string;
+  args: unknown[];
+}
+```
+
+Any object implementing `Executable` can serve as a pool worker — Durable Objects, in-process handlers, or remote gRPC stubs.

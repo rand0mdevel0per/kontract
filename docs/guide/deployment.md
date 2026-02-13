@@ -256,3 +256,199 @@ Request body is the arguments array (or a single value wrapped in an array). Res
 
 Health check at `GET /health` returns `{ "status": "ok", "routes": <count> }`.
 
+## Self-Hosted Deployment
+
+For private cloud or on-premises environments, Kontract runs as a standard Node.js HTTP server backed by PostgreSQL and (optionally) TiKV.
+
+### Docker
+
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+EXPOSE 8787
+CMD ["node", "dist/server.js"]
+```
+
+```bash
+docker build -t kontract-app .
+docker run -d \
+  -p 8787:8787 \
+  -e DATABASE_URL="postgresql://user:pass@db:5432/kontract" \
+  -e KONTRACT_SECRET="your-32-byte-hex-key" \
+  --name kontract \
+  kontract-app
+```
+
+### Docker Compose
+
+Full stack with PostgreSQL and TiKV:
+
+```yaml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      DATABASE_URL: postgresql://kontract:kontract@postgres:5432/kontract
+      KONTRACT_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      TIKV_PD_ENDPOINT: "pd:2379"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kontract
+      POSTGRES_PASSWORD: kontract
+      POSTGRES_DB: kontract
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  # Optional: TiKV for multi-node DO state
+  pd:
+    image: pingcap/pd:latest
+    command: --name=pd --client-urls=http://0.0.0.0:2379
+
+  tikv:
+    image: pingcap/tikv:latest
+    command: --pd-endpoints=pd:2379
+    depends_on:
+      - pd
+
+volumes:
+  pg_data:
+```
+
+### systemd
+
+For bare-metal or VM deployment:
+
+```ini
+# /etc/systemd/system/kontract.service
+[Unit]
+Description=Kontract Gateway
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=kontract
+WorkingDirectory=/opt/kontract
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5s
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/kontract/env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Environment file (`/etc/kontract/env`):
+
+```bash
+DATABASE_URL=postgresql://kontract:password@localhost:5432/kontract
+KONTRACT_SECRET=your-32-byte-hex-key
+PORT=8787
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable kontract
+sudo systemctl start kontract
+```
+
+### Kubernetes
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kontract
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kontract
+  template:
+    metadata:
+      labels:
+        app: kontract
+    spec:
+      containers:
+        - name: kontract
+          image: your-registry/kontract-app:latest
+          ports:
+            - containerPort: 8787
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kontract-secrets
+                  key: database-url
+            - name: KONTRACT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kontract-secrets
+                  key: kontract-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8787
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8787
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kontract
+spec:
+  selector:
+    app: kontract
+  ports:
+    - port: 80
+      targetPort: 8787
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kontract-secrets
+type: Opaque
+stringData:
+  database-url: postgresql://kontract:password@postgres:5432/kontract
+  kontract-secret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+```
+
+### Multi-Node Considerations
+
+When running multiple Kontract instances (replicas), keep in mind:
+
+| Concern | Solution |
+|---------|----------|
+| DO state sharing | Use TiKV as the `DOStub` backend instead of `MemoryDOStub` |
+| Session affinity | Not required — JWT tokens are stateless, verified on any node |
+| Database connections | Use connection pooling (PgBouncer, Pgpool-II) |
+| Health checks | `GET /health` returns route count and status |
+| Cold starts | Enable lazy route loading to minimize startup overhead |
+

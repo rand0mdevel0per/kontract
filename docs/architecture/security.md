@@ -233,3 +233,115 @@ Client                         Gateway
 3. `requireGroup(ugroup)` — rejects users not in the specified group (403)
 
 All three produce standard `Middleware` objects compatible with `filterApplicable` and `inlineMiddlewareChain`.
+
+## Handshake Protocol
+
+The connection handshake establishes an encrypted session between client and gateway. Spec §11.2.
+
+### Flow
+
+```
+Client                             Gateway
+  |                                  |
+  |--- HandshakeInit ──────────────→ |
+  |    version: 1                    |
+  |    clientPub: Uint8Array         |
+  |    supportedCiphers:             |
+  |      [chacha20-poly1305,         |
+  |       aes-256-gcm]              |
+  |                                  |
+  |←── HandshakeResponse ──────────  |
+  |    version: 1                    |
+  |    serverPub: Uint8Array         |
+  |    sessionId: string             |
+  |    selectedCipher: string        |
+  |    expiresAt: timestamp          |
+  |                                  |
+  [Both derive session key via ECDH + HKDF]
+  |                                  |
+  |==== Encrypted Channel ==========|
+```
+
+### API
+
+```ts
+createHandshakeInit(clientPub: Uint8Array): HandshakeInit
+createHandshakeResponse(serverPub: Uint8Array, sessionId: string, cipher: string, ttlMs: number): HandshakeResponse
+```
+
+### Session Resume
+
+Clients can resume expired sessions without a full re-handshake:
+
+```ts
+interface SessionResumeRequest {
+  sessionId: string;
+  lastTxid?: bigint;
+}
+
+interface SessionResumeResponse {
+  resumed: boolean;
+  expired?: boolean;
+  currentTxid?: bigint;
+}
+```
+
+## Heartbeat Protocol
+
+Heartbeats monitor connection health. The gateway sends periodic heartbeat messages and tracks missed responses.
+
+### API
+
+```ts
+createHeartbeat(): Heartbeat                           // Client → Gateway
+respondHeartbeat(incoming: Heartbeat): Heartbeat       // Gateway → Client (with serverTime)
+```
+
+### Health States
+
+`checkHeartbeatHealth(state, now)` evaluates connection health based on elapsed time since the last heartbeat:
+
+| State | Condition | Action |
+|-------|-----------|--------|
+| `ok` | Last heartbeat within 1.5× interval | Continue |
+| `warn` | Exceeded interval, 0 missed | Log warning |
+| `reconnect` | 1 missed heartbeat | Attempt reconnection |
+| `terminate` | 2+ missed heartbeats | Close connection |
+
+Default heartbeat interval: 60 seconds.
+
+### Connection State
+
+```ts
+interface ConnectionState {
+  sessionId: string;
+  sessionKey: Uint8Array;
+  cipher: string;
+  expiresAt: number;
+  missedHeartbeats: number;
+  lastHeartbeat: number;
+}
+```
+
+`processHeartbeat(state)` resets missed count. `tickMissedHeartbeat(state)` increments it.
+
+## Retry Logic
+
+Failed requests are retried with exponential backoff:
+
+```ts
+retryDelay(attempt: number): number   // min(100ms × 2^attempt, 10s)
+shouldRetry(statusOrCode, attempt, maxRetries?): boolean
+```
+
+Retry rules:
+
+| Condition | Retry? |
+|-----------|--------|
+| 5xx server error | Yes |
+| 408 timeout | Yes |
+| 4xx client error (except 408) | No |
+| `SESSION_EXPIRED` | Yes (re-handshake first) |
+| `TIMEOUT` | Once (attempt < 1) |
+| Network error | Yes |
+| Max retries exceeded | No |

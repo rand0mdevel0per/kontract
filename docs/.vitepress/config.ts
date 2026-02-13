@@ -21,9 +21,11 @@ export default defineConfig({
       '/guide/': [
         { text: 'Overview', link: '/guide/overview' },
         { text: 'Quickstart', link: '/guide/quickstart' },
+        { text: 'CLI', link: '/guide/cli' },
         { text: 'Authentication', link: '/guide/authentication' },
         { text: 'Cookbook', link: '/guide/cookbook' },
         { text: 'Lazy Loading', link: '/guide/lazy-loading' },
+        { text: 'Migrations', link: '/guide/migrations' },
         { text: 'Deployment', link: '/guide/deployment' }
       ],
       '/architecture/': [
