@@ -5,6 +5,9 @@ hero:
   name: Kontract
   text: One Database, One World
   tagline: Serverless full-stack TypeScript framework with minimal database privileges, end-to-end encryption, and zero-config MVCC.
+  image:
+    src: /logo.svg
+    alt: Kontract
   actions:
     - theme: brand
       text: Get Started
