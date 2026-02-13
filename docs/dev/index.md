@@ -1,8 +1,8 @@
 # Developer Documentation
 
-This section provides implementation‑level details for contributors and integrators: installation, configuration, API references, and contribution workflow.
+Implementation-level reference for contributors and integrators.
 
-## Architecture Snapshot
+## Architecture
 
 ```
 Client
@@ -11,7 +11,7 @@ Client
 Runtime ── Middleware ── @backend Routes
   │
   ▼
-Storage Proxy (ptr) ── MVCC ── Database
+Storage Proxy (ptr) ── MVCC ── PostgreSQL
 ```
 
 ## Request Flow
@@ -26,13 +26,13 @@ RPC Stub (__kontract_rpc)
 Route Map (@backend meta)
   │
   ▼
-Middleware Filter
+Middleware Filter (prefixurl / egroup / endpoints)
   │
   ▼
 Handler Execution
   │
   ▼
-Storage Proxy → MVCC → Database
+Storage Proxy → MVCC → PostgreSQL
   │
   ▼
 SSE Event Emit
@@ -40,10 +40,10 @@ SSE Event Emit
 
 ## Core Concepts
 
-- Minimal privilege: Storage access is gated by ptr resolution and MVCC rules
-- Explicit boundary: @backend is the compiler entry point for remote calls
-- Consistent events: SSE payloads align on a single shape
-- Deterministic middleware: filtered and inlined into a single handler
+- **Minimal privilege**: storage access is gated by ptr resolution and MVCC rules
+- **Explicit boundary**: `@backend` is the compiler entry point for remote calls
+- **Consistent events**: SSE payloads use a unified `ChangeEvent` shape
+- **Deterministic middleware**: filtered and inlined into a single handler at compile time
 
 ## Sections
 

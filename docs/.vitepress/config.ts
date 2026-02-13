@@ -1,14 +1,15 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-  title: 'Konstract',
-  description: 'Event‑driven full‑stack TypeScript framework prototype',
+  title: 'Kontract',
+  description: 'Serverless full-stack TypeScript framework with minimal database privileges',
   base: '/',
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/overview' },
       { text: 'Quickstart', link: '/guide/quickstart' },
       { text: 'Architecture', link: '/architecture/runtime' },
+      { text: 'Security', link: '/architecture/security' },
       { text: 'Developer Docs', link: '/dev/' },
       { text: 'User Docs', link: '/user/' }
     ],
@@ -20,7 +21,8 @@ export default defineConfig({
       '/architecture/': [
         { text: 'Runtime', link: '/architecture/runtime' },
         { text: 'Compiler', link: '/architecture/compiler' },
-        { text: 'Storage & Migrations', link: '/architecture/storage' }
+        { text: 'Storage & Migrations', link: '/architecture/storage' },
+        { text: 'Security', link: '/architecture/security' }
       ],
       '/dev/': [
         { text: 'Developer Docs', link: '/dev/' },
@@ -38,7 +40,7 @@ export default defineConfig({
       ]
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/rand0mdevel0per/konstract' }
+      { icon: 'github', link: 'https://github.com/kontract-framework/kontract' }
     ]
   }
 });

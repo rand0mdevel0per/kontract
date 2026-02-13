@@ -1,144 +1,262 @@
 # API Reference
 
-This reference describes the runtime, compiler, and protocol APIs exposed by the prototype implementation.
-
-## Naming Conventions
-
-- Logical table name: the identifier used in TableProxy
-- ptr: physical table name resolved from storage registry
-- txid: monotonically increasing transaction id for MVCC
-
 ## Storage Proxy
 
+### TableProxy\<T\>
+
 ```ts
-const proxy = new TableProxy(pg, 'users', ctx);
-const user = await proxy.get('user-1');
+class TableProxy<T> {
+  constructor(pg: PGClient, name: string, ctx: Context);
 ```
 
-Behavior:
+#### Methods
 
-- Resolves table ptr from storage table
-- Enforces MVCC visibility based on current txid
-- Rejects cross‑table access in exec
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `getPtr()` | `() => Promise<string>` | Resolves physical table name from `storage` table |
+| `get(id)` | `(id: string) => Promise<T \| null>` | Fetch visible record by ID (MVCC-filtered) |
+| `set(id, value)` | `(id: string, value: T) => Promise<void>` | Insert or upsert a record |
+| `delete(id)` | `(id: string) => Promise<boolean>` | Logical delete via `_deleted_txid` marker |
+| `update(id, partial)` | `(id: string, partial: Partial<T>) => Promise<void>` | Merge partial fields into existing record |
+| `push(value)` | `(value: T) => Promise<string>` | Append to ordered list, returns generated ID |
+| `pop()` | `() => Promise<T \| null>` | Remove and return last item by `_order` |
+| `shift()` | `() => Promise<T \| null>` | Remove and return first item by `_order` |
+| `query(filter)` | `(filter: Partial<T>) => AsyncIterableIterator<T>` | JSONB containment query |
+| `exec(sql, params)` | `(sql: string, params?: unknown[]) => Promise<{rows}>` | Guarded raw SQL with table name rewriting |
 
-Key methods:
+#### Errors
 
-- get(id): fetch visible record by id
-- set(data): insert a new version
-- update(id, patch): merge partial fields and insert
-- delete(id): logical delete by txid marker
-- query(where): JSON containment query
-- exec(sql, params): guarded SQL with table name rewriting
+- Throws if ptr cannot be resolved from `storage` table
+- Throws if `exec()` contains cross-table references
+- Identifier validation rejects non-alphanumeric table names
 
-Errors:
-
-- Throws if the table ptr cannot be resolved
-- Throws if exec contains cross‑table references
-- Throws if required context is missing
-
-## @backend Compiler
+### PGClient Interface
 
 ```ts
-class Service {
-  @backend({ egroup: 'api-v1', perm: 0b111 })
-  async getUser(id: string) {
-    return { id };
-  }
+interface PGClient {
+  query(sql: string, params?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
 }
 ```
 
-Artifacts:
+## SessionDO
 
-- Client stub calling __kontract_rpc
-- Server route mapping with meta
+```ts
+class SessionDO {
+  async allocateTxid(): Promise<bigint>;
+  async beginTransaction(owner: string): Promise<{ sid: string; owner: string; currentTxid: bigint }>;
+  async commit(sid: string): Promise<void>;
+  get minActiveTxid(): bigint;
+}
+```
 
-Route metadata:
+## HTTP Response Types
 
-- egroup: route group for middleware filtering
-- perm: permission bitmask used by runtime guards
+### HttpResp\<T\>
 
-Compilation flow:
+```ts
+class HttpResp<T = any> {
+  constructor(data: T, status?: number, headers?: Record<string, string>);
 
-1. Parse source with decorators support
-2. Extract @backend metadata
-3. Emit client stubs
-4. Emit server route map
+  static ok<T>(data: T, headers?: Record<string, string>): HttpResp<T>;
+  static created<T>(data: T, headers?: Record<string, string>): HttpResp<T>;
+  static noContent(headers?: Record<string, string>): HttpResp<null>;
+  static redirect(url: string): HttpResp<null>;
+}
+```
+
+### Error Classes
+
+| Class | Status | Code |
+|-------|--------|------|
+| `HttpError` | any | any |
+| `UnauthorizedError` | 401 | `UNAUTHORIZED` |
+| `ForbiddenError` | 403 | `FORBIDDEN` |
+| `NotFoundError` | 404 | `NOT_FOUND` |
+| `PermissionError` | 403 | `PERMISSION_DENIED` |
+
+## Compiler
+
+### transformBackend
+
+```ts
+function transformBackend(source: string): BackendTransformResult;
+
+interface BackendTransformResult {
+  client: string;   // RPC stub code
+  server: string;   // Route registration code
+  routes: Array<{ name: string; meta: Record<string, unknown> }>;
+}
+```
+
+### buildCache
+
+```ts
+function buildCache(entries: FileEntry[], version?: string): CacheOutput;
+
+interface FileEntry {
+  path: string;
+  content: string;
+  dependencies?: string[];
+}
+
+interface CacheOutput {
+  files: Record<string, { hash: string; dependencies: string[] }>;
+  version: string;
+}
+```
+
+### generateStorageRegistry
+
+```ts
+function generateStorageRegistry(source: string): RegistryResult;
+
+interface RegistryResult {
+  dts: string;    // Generated .d.ts content
+  keys: string[]; // Lowercase interface names
+}
+```
 
 ## Middleware
 
+### filterApplicable
+
 ```ts
-const middleware = [
-  { fn: async (ctx, next) => { await next(); }, filter: { prefixurl: '/api' } },
-  { fn: async (ctx, next) => { await next(); }, filter: { egroup: 'api-v1' } }
-];
-const run = inlineMiddlewareChain(middleware);
-await run(ctx, handler);
+function filterApplicable(
+  mw: Middleware[],
+  path: string,
+  egroup?: string,
+  endpoint?: string
+): Middleware[];
 ```
 
-Filtering:
+### inlineMiddlewareChain
 
-- prefixurl: matches request path
-- egroup: matches route group
-- endpoints: matches function name
+```ts
+function inlineMiddlewareChain(
+  mw: Middleware[]
+): (ctx: unknown, final: () => Promise<void>) => Promise<void>;
+```
 
-Execution:
-
-- Middleware runs in order after filtering
-- next() composes into a single handler
-
-Expected shape:
+### Middleware Type
 
 ```ts
 type Middleware = {
   fn: (ctx: unknown, next: () => Promise<void>) => Promise<void>;
-  filter?: { prefixurl?: string; egroup?: string; endpoints?: string[] };
+  filter?: MiddlewareFilter;
+};
+
+interface MiddlewareFilter {
+  prefixurl?: string;
+  egroup?: string;
+  endpoints?: string[];
+}
+```
+
+## Permissions
+
+### Constants
+
+```ts
+const perms = {
+  R__: 0b100, _W_: 0b010, __X: 0b001,
+  RW_: 0b110, R_X: 0b101, _WX: 0b011, RWX: 0b111
 };
 ```
 
-## Raystream
+### Functions
 
 ```ts
-const { data, nonce, tag } = encrypt(payload, key);
-const out = decrypt({ data, nonce, tag }, key);
+function verifyAccess(ctx: PermContext, requiredPerm: number, owner?: string): void;
+function checkTablePermission(perms: number, operation: 'read' | 'write' | 'delete'): void;
+function checkFieldPermissions(data: Record<string, unknown>, fieldPerms: Record<string, number>, mask: number): void;
 ```
 
-Encryption:
-
-- Prefers chacha20‑poly1305 if supported
-- Falls back to aes‑256‑gcm
-
-Key derivation:
-
-- Uses SHA‑256 based helpers in the prototype
-
-Payload layout:
-
-- data: ciphertext
-- nonce: per‑message nonce
-- tag: authentication tag
-
-## SSE Events
+## Encryption (raystream)
 
 ```ts
-const payload = formatSSE({ type: 'insert', id: '1', data: { name: 'A' } });
+function hkdf(input: Uint8Array, info: string, len: number): Uint8Array;
+function encrypt(payload: Uint8Array, key: Uint8Array): { nonce: Uint8Array; data: Uint8Array; tag: Uint8Array };
+function decrypt(encrypted: { nonce: Uint8Array; data: Uint8Array; tag: Uint8Array }, key: Uint8Array): Uint8Array;
 ```
 
-Fields:
+Cipher selection: prefers `chacha20-poly1305`, falls back to `aes-256-gcm`.
 
-- type: insert | update | delete | custom
-- id: entity id
-- data: payload object
+## Protocol
+
+### MessageType
+
+```ts
+enum MessageType {
+  HANDSHAKE_INIT = 0x01, HANDSHAKE_RESPONSE = 0x02,
+  RPC_CALL = 0x10, RPC_RESPONSE = 0x11, RPC_ERROR = 0x12,
+  SUBSCRIBE = 0x20, EVENT = 0x21,
+  HEARTBEAT = 0x30, CLOSE = 0xFF
+}
+```
+
+### ErrorCode
+
+```ts
+enum ErrorCode {
+  UNAUTHORIZED, FORBIDDEN, NOT_FOUND, INVALID_REQUEST, PERMISSION_DENIED,
+  INTERNAL_ERROR, SERVICE_UNAVAILABLE, TIMEOUT,
+  SESSION_EXPIRED, DECRYPTION_FAILED, INVALID_NONCE
+}
+```
+
+## Events
+
+### EventBus
+
+```ts
+class EventBus {
+  subscribe(table: string, handler: SubscriptionHandler): () => void;
+  emit(table: string, event: ChangeEvent): void;
+  listenerCount(table: string): number;
+}
+```
+
+### formatSSE
+
+```ts
+function formatSSE(event: ChangeEvent): string;
+// Returns: "data: {json}\n\n"
+```
+
+### ChangeEvent
+
+```ts
+type ChangeEvent = {
+  type: 'insert' | 'update' | 'delete';
+  id: string;
+  data?: unknown;
+  oldData?: unknown;
+};
+```
+
+## Migrations
+
+### diffSchemas
+
+```ts
+function diffSchemas(oldS: Schema, newS: Schema): { safe: boolean; changes: Array<{ type: string; field: string }> };
+```
+
+### generateSQLAddField
+
+```ts
+function generateSQLAddField(ptr: string, field: string, fieldType: string): string;
+```
 
 ## Error Codes
 
-| Code | Meaning | Typical Cause | Resolution |
-| --- | --- | --- | --- |
-| KONTRACT_CTX_MISSING | Required context fields are missing | ctx is undefined or incomplete | Provide sid, owner, currentTxid, perm |
-| KONTRACT_STORAGE_PTR_NOT_FOUND | Storage ptr resolution failed | storage table missing mapping | Ensure storage registry row exists |
-| KONTRACT_EXEC_CROSS_TABLE | Cross‑table SQL blocked | exec contains other table names | Restrict exec to current table |
-| KONTRACT_PERMISSION_DENIED | Permission bitmask rejected | perm lacks required bits | Align perm and @backend meta |
-| KONTRACT_TXID_INVALID | txid is missing or invalid | currentTxid not set or not increasing | Set currentTxid from session |
-| KONTRACT_DECORATOR_PARSE_FAILED | @backend parse failed | decorator syntax not supported | Enable decorators and TypeScript parser |
-| KONTRACT_CRYPTO_UNSUPPORTED | Crypto algorithm unavailable | missing OpenSSL features | Prefer chacha20 or fallback to AES |
-| KONTRACT_DECRYPT_FAILED | Ciphertext verification failed | wrong key/nonce/tag | Ensure key and nonce are correct |
-| KONTRACT_EVENT_FORMAT_INVALID | SSE payload invalid | missing type/id/data | Emit payload with required fields |
+| Code | Meaning | Resolution |
+|------|---------|------------|
+| `KONTRACT_CTX_MISSING` | Required context fields missing | Provide `sid`, `owner`, `currentTxid`, `perm` |
+| `KONTRACT_STORAGE_PTR_NOT_FOUND` | ptr resolution failed | Ensure `storage` registry row exists |
+| `KONTRACT_EXEC_CROSS_TABLE` | Cross-table SQL blocked | Restrict `exec` to current table |
+| `KONTRACT_PERMISSION_DENIED` | Permission bitmask rejected | Align `perm` and `@backend` meta |
+| `KONTRACT_TXID_INVALID` | txid missing or invalid | Set `currentTxid` from session |
+| `KONTRACT_DECORATOR_PARSE_FAILED` | `@backend` parse failed | Enable decorators plugin |
+| `KONTRACT_CRYPTO_UNSUPPORTED` | Crypto algorithm unavailable | Check OpenSSL build |
+| `KONTRACT_DECRYPT_FAILED` | Ciphertext verification failed | Verify key, nonce, and tag |

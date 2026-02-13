@@ -1,8 +1,8 @@
 {
-  "name": "konstract",
+  "name": "kontract",
   "version": "0.1.0",
   "private": true,
-  "description": "Kontract framework prototype with tests and CI",
+  "description": "Serverless full-stack TypeScript framework with minimal database privileges",
   "license": "MIT",
   "type": "module",
   "scripts": {

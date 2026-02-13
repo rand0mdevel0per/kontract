@@ -1,90 +1,96 @@
 # Configuration
 
-Konstract focuses on explicit build scripts and minimal runtime assumptions. Configuration is primarily defined through code and package scripts.
+## Runtime Context
 
-## Runtime Context Model
+The runtime expects a `Context` object for every backend function invocation:
 
-The runtime expects a context object that carries session and permission details used by Storage Proxy and MVCC rules.
-
-Expected fields:
-
-- sid: session identifier
-- owner: tenant or account identifier
-- currentTxid: current transaction id
-- perm: permission bitmask
+```ts
+interface Context {
+  sid: string;           // Session identifier
+  owner: string;         // Tenant or account identifier
+  currentTxid: bigint;   // Current transaction ID for MVCC
+  perm: number;          // Permission bitmask
+  method?: string;       // HTTP method
+  path?: string;         // Request path
+  headers?: Record<string, string>;
+  route?: { name: string; egroup?: string };
+}
+```
 
 Example:
 
 ```ts
-const ctx = {
+const ctx: Context = {
   sid: 'session-1',
   owner: 'tenant-1',
   currentTxid: 10n,
-  perm: 0b111
+  perm: perms.RWX  // 0b111
 };
 ```
 
 ## Storage Table Requirements
 
-The Storage Proxy resolves physical table names via a storage registry table. At runtime, these are expected:
+The Storage Proxy resolves physical table names via the `storage` table:
 
-- storage table contains ptr records (logical table name + owner → ptr)
-- transactions table stores tx metadata for MVCC checks
+```sql
+CREATE TABLE storage (
+  id TEXT PRIMARY KEY,
+  ptr TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  permissions INT NOT NULL
+);
 
-Minimum fields used by the runtime:
+CREATE TABLE trxs (
+  sid TEXT PRIMARY KEY,
+  owner TEXT NOT NULL,
+  create_txid BIGINT NOT NULL
+);
+```
 
-- storage.ptr
-- transactions.txid
+## Permission Bits
 
-## Permissions
+Kontract uses a 3-bit permission mask matching Unix-style RWX:
 
-Permissions use a bitmask to guard storage operations. A typical pattern is:
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `R__` | `0b100` (4) | Read |
+| `_W_` | `0b010` (2) | Write |
+| `__X` | `0b001` (1) | Execute/Delete |
+| `RW_` | `0b110` (6) | Read + Write |
+| `R_X` | `0b101` (5) | Read + Execute |
+| `_WX` | `0b011` (3) | Write + Execute |
+| `RWX` | `0b111` (7) | Full access |
 
-- 0b001: read
-- 0b010: write
-- 0b100: admin
+Usage in `@backend` decorator:
 
-Use perm in the session context and @backend meta to align authorization.
+```ts
+@backend({ perm: perms.RW_ })  // Requires read + write
+async function updateUser(id: string, data: Partial<User>) { ... }
+```
 
 ## Environment Matrix
 
-| Environment | Node.js | npm | Database | Notes |
-| --- | --- | --- | --- | --- |
-| Local development | 20+ | 9+ | PostgreSQL compatible | Use docs:dev for preview |
-| CI | 20+ | 9+ | PostgreSQL compatible | Lint, typecheck, test with coverage |
-| Cloudflare Pages | 20+ | 9+ | Not required | Build only, no runtime DB |
-| Production runtime | 20+ | 9+ | PostgreSQL compatible | Ensure storage/transactions tables exist |
+| Environment | Node.js | Database | Notes |
+|-------------|---------|----------|-------|
+| Local dev | 20+ | PostgreSQL 14+ | Use `npm run docs:dev` for preview |
+| CI | 20+ | PostgreSQL 14+ | Lint, typecheck, test with coverage |
+| Production | 20+ | PostgreSQL 14+ | Ensure `storage` and `trxs` tables exist |
 
 ## Configuration Checklist
 
-- ctx includes sid, owner, currentTxid, perm
-- storage registry is populated for each logical table
-- transactions table exists and records txid
-- permissions align between session and @backend meta
+- [ ] `ctx` includes `sid`, `owner`, `currentTxid`, `perm`
+- [ ] `storage` table is populated for each logical table
+- [ ] `trxs` table exists and records transaction metadata
+- [ ] Permission bits align between session context and `@backend` decorator
+- [ ] Data tables have `_txid`, `_deleted_txid`, `_owner`, `_order` columns
 
 ## Scripts
 
 | Script | Purpose |
-| --- | --- |
-| npm run lint | ESLint checks for TypeScript source |
-| npm run typecheck | TypeScript type checks |
-| npm run test | Vitest with coverage |
-| npm run docs:dev | VitePress dev server |
-| npm run docs:build | Build docs site |
-| npm run docs:preview | Preview built docs |
-
-## VitePress
-
-The docs site is configured in docs/.vitepress/config.ts and built into docs/.vitepress/dist.
-
-Cloudflare Pages settings:
-
-- Build command: npm run docs:build
-- Output directory: docs/.vitepress/dist
-
-Wrangler CLI deploy:
-
-```bash
-npm run docs:build
-npx wrangler pages deploy docs/.vitepress/dist --project-name konstract
-```
+|--------|---------|
+| `npm run build` | TypeScript compilation |
+| `npm run lint` | ESLint checks |
+| `npm run typecheck` | TypeScript type verification |
+| `npm run test` | Vitest with coverage thresholds |
+| `npm run docs:dev` | VitePress dev server |
+| `npm run docs:build` | Build documentation site |

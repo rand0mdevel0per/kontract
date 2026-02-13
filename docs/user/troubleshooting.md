@@ -1,50 +1,62 @@
 # Troubleshooting
 
-## Tests fail on branch coverage
+## Storage Access Errors
 
-Ensure all branches remain above the configured threshold. Add tests for additional branches in compiler, middleware, or storage where needed.
+**"Table X not found"**
 
-## Docs do not build on Cloudflare Pages
+The `storage` table doesn't have a ptr mapping for the logical table name. Insert a row:
 
-- Build command: npm run docs:build
-- Output directory: docs/.vitepress/dist
-- Node version: 20+
- - Wrangler project name matches Cloudflare Pages project
+```sql
+INSERT INTO storage (id, ptr, owner, permissions) VALUES ('users', 'tbl_users_abc123', 'tenant-1', 7);
+```
 
-## Decorators parsing errors
+## Permission Denied
 
-Ensure @backend decorators are used on class methods with the configured TypeScript parser plugin.
+**"Insufficient permissions"**
 
-## Storage access errors
+The `perm` field in context doesn't satisfy the required permission bits. Check:
 
-Check ptr mapping in the storage table and confirm the table name matches expected registry keys.
+1. The `@backend` decorator specifies the correct `perm` value
+2. The session context has matching permission bits
+3. Use `perms.R__` (0b100) for read, `perms._W_` (0b010) for write, `perms.__X` (0b001) for delete
 
-## Middleware not executing
+## exec() Rejects SQL
 
-Verify filter fields:
+**"Cannot access other tables"**
 
-- prefixurl matches the request path
-- egroup matches route metadata
-- endpoints includes the function name
+`exec()` validates that SQL only references the current table. Remove cross-table JOINs or references. Use separate `TableProxy` instances for each table.
 
-## exec rejects SQL
+## Middleware Not Executing
 
-exec only allows statements for the current table. If you see rejections, remove cross‑table references or joins.
+Verify the filter matches:
 
-## SSE event output is empty
+- `prefixurl` must be a prefix of the request path
+- `egroup` must match the route's endpoint group
+- `endpoints` must include the function name
 
-Ensure the emitter uses the expected payload shape:
+A middleware with no filter applies to all requests.
 
-- type
-- id
-- data
+## Decorator Parsing Errors
 
-Check that events are flushed to the client and the connection is not closed prematurely.
+Ensure `@backend` is used on class methods or exported functions with Babel's `decorators` plugin enabled. The parser requires `sourceType: 'module'` and `plugins: ['typescript', 'decorators']`.
 
-## Deployment fails with wrangler
+## Encryption Failures
 
-Check:
+**"KONTRACT_DECRYPT_FAILED"**
 
-- wrangler is installed or invoked via npx
-- project name matches the Cloudflare Pages project
-- build output directory exists
+- Verify the encryption key matches between encrypt and decrypt
+- Ensure nonce is transmitted alongside ciphertext
+- Check that the auth tag is not corrupted
+- The cipher algorithm must match (both sides use `chacha20-poly1305` or both use `aes-256-gcm`)
+
+## MVCC Visibility Issues
+
+If records appear missing:
+
+- Check that `currentTxid` in the context is greater than the record's `_txid`
+- Verify the record doesn't have a `_deleted_txid` less than `currentTxid`
+- Use `SessionDO.allocateTxid()` to get a fresh transaction ID
+
+## Tests Fail on Coverage
+
+Ensure all branches remain above configured thresholds (lines: 90%, statements: 90%, branches: 85%, functions: 90%). Run `npm run test` to see the coverage report and identify uncovered lines.

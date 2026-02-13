@@ -1,3 +1,14 @@
+/** Permission bit constants as defined in the Kontract spec. */
+export const perms = {
+  R__: 0b100,
+  _W_: 0b010,
+  __X: 0b001,
+  RW_: 0b110,
+  R_X: 0b101,
+  _WX: 0b011,
+  RWX: 0b111
+} as const;
+
 export interface PermContext {
   sid: string;
   owner: string;

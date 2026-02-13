@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { verifyAccess, checkTablePermission, checkFieldPermissions } from '../src/security/permissions';
+import { verifyAccess, checkTablePermission, checkFieldPermissions, perms } from '../src/security/permissions';
+
+describe('perms constants', () => {
+  it('has correct bit values', () => {
+    expect(perms.R__).toBe(0b100);
+    expect(perms._W_).toBe(0b010);
+    expect(perms.__X).toBe(0b001);
+    expect(perms.RW_).toBe(0b110);
+    expect(perms.R_X).toBe(0b101);
+    expect(perms._WX).toBe(0b011);
+    expect(perms.RWX).toBe(0b111);
+  });
+
+  it('combinations are consistent', () => {
+    expect(perms.RW_).toBe(perms.R__ | perms._W_);
+    expect(perms.R_X).toBe(perms.R__ | perms.__X);
+    expect(perms._WX).toBe(perms._W_ | perms.__X);
+    expect(perms.RWX).toBe(perms.R__ | perms._W_ | perms.__X);
+  });
+});
 
 describe('permissions', () => {
   it('verifyAccess checks owner and mask', () => {

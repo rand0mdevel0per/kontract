@@ -7,6 +7,10 @@ export interface Context {
   owner: string;
   currentTxid: bigint;
   perm: number;
+  method?: string;
+  path?: string;
+  headers?: Record<string, string>;
+  route?: { name: string; egroup?: string };
 }
 
 function sanitizeIdentifier(name: string): string {

@@ -1,10 +1,10 @@
 # User Documentation
 
-This section explains how to use Konstract as a framework consumer: setup, features, usage examples, and troubleshooting.
+This section covers how to use Kontract as a framework consumer.
 
 ## Sections
 
-- [Setup](/user/setup)
-- [Features](/user/features)
-- [Examples](/user/examples)
-- [Troubleshooting](/user/troubleshooting)
+- [Setup](/user/setup) - prerequisites and installation
+- [Features](/user/features) - what Kontract provides
+- [Examples](/user/examples) - end-to-end code examples
+- [Troubleshooting](/user/troubleshooting) - common issues and fixes

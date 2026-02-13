@@ -8,45 +8,24 @@
 ## Clone and Install
 
 ```bash
-git clone https://github.com/rand0mdevel0per/konstract.git
-cd konstract
+git clone https://github.com/kontract-framework/kontract.git
+cd kontract
 npm install
 ```
 
-## Install Dependencies
+## Verify
 
 ```bash
-npm install
+npm run lint       # ESLint checks
+npm run typecheck  # TypeScript type verification
+npm run test       # Vitest with coverage
 ```
 
-## Quality Gates
+All tests should pass with coverage thresholds:
 
-```bash
-npm run lint
-npm run typecheck
-npm run test
-```
-
-## Docs Build
-
-```bash
-npm run docs:build
-```
-
-## Local Docs Preview
-
-```bash
-npm run docs:dev
-```
-
-## Wrangler Deployment (Cloudflare Pages)
-
-```bash
-npm run docs:build
-npx wrangler pages deploy docs/.vitepress/dist --project-name konstract
-```
-
-Notes:
-
-- The project name must match the Cloudflare Pages project
-- Use Node.js 20+ in the build environment
+| Metric | Threshold |
+|--------|-----------|
+| Lines | 90% |
+| Statements | 90% |
+| Branches | 85% |
+| Functions | 90% |

@@ -5,13 +5,13 @@
 - Node.js 20+
 - npm 9+
 
-## Install Dependencies
+## Install
 
 ```bash
 npm install
 ```
 
-## Quality Checks and Tests
+## Run Quality Checks
 
 ```bash
 npm run lint
@@ -19,28 +19,55 @@ npm run typecheck
 npm run test
 ```
 
-## Run the Docs Site
+## Define a Backend Function
 
-```bash
-npm run docs:dev
+```ts
+class UserService {
+  @backend({ egroup: 'api-v1', perm: 0b110 })
+  async getUser(id: string) {
+    return await env.storage.users.get(id);
+  }
+}
 ```
 
-## Production Build
+The compiler extracts `@backend` functions into the server bundle and generates typed RPC stubs for the client.
 
-```bash
-npm run docs:build
+## Use Storage Proxy
+
+```ts
+const proxy = new TableProxy(pg, 'users', ctx);
+
+// CRUD
+const user = await proxy.get('user-1');
+await proxy.set('user-1', { name: 'Alice', email: 'alice@example.com' });
+await proxy.update('user-1', { name: 'Bob' });
+await proxy.delete('user-1');
+
+// List operations
+await proxy.push({ name: 'Carol' });
+const last = await proxy.pop();
+
+// Query
+for await (const u of proxy.query({ active: true })) {
+  console.log(u);
+}
 ```
 
-Build output is docs/.vitepress/dist, suitable for Cloudflare Pages.
+## Subscribe to Events
 
-## Cloudflare Pages Settings
+```ts
+const bus = new EventBus();
 
-- Build command: `npm run docs:build`
-- Output directory: `docs/.vitepress/dist`
+const unsubscribe = bus.subscribe('users', (event) => {
+  console.log(event.type, event.id, event.data);
+});
 
-## Wrangler Deploy
-
-```bash
-npm run docs:build
-npx wrangler pages deploy docs/.vitepress/dist --project-name konstract
+// Emit from server
+bus.emit('users', { type: 'insert', id: 'user-1', data: { name: 'Alice' } });
 ```
+
+## Next Steps
+
+- [Architecture overview](/guide/overview) for the full system diagram
+- [Compiler](/architecture/compiler) for `@backend` decorator details
+- [Security](/architecture/security) for the raystream encryption protocol
